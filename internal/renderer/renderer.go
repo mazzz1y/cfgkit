@@ -31,6 +31,10 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 		return nil, fmt.Errorf("device %s not found", name)
 	}
 
+	if d.TemplateName == "" {
+		d.TemplateName = "default"
+	}
+
 	t, ok := cfg.Templates[d.TemplateName]
 	if !ok {
 		return nil, fmt.Errorf("template %s not found", d.TemplateName)
