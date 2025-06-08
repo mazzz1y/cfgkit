@@ -18,12 +18,12 @@ devices:
   device1:
     template: default
     password: secret
-    replacements:
+    variables:
       auth:
         username: device1
         password: password!
 
-replacements:
+variables:
   api_endpoint: http://example.com
   timeout: 30
 
