@@ -41,6 +41,8 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 		return nil, fmt.Errorf("template %s not found", d.TemplateName)
 	}
 
+	d.Variables["Name"] = name
+
 	return &Renderer{
 		tmplStr:    t.Template,
 		resultType: t.Type,
