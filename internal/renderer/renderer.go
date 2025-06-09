@@ -5,6 +5,7 @@ import (
 	"cfgkit/internal/config"
 	"encoding/json"
 	"fmt"
+	"os"
 	"text/template"
 )
 
@@ -48,7 +49,9 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 			Device: d.Variables,
 		},
 		funcMap: template.FuncMap{
-			"toJSON": toJSON,
+			"toJSON":   toJSON,
+			"readFile": readFile,
+			"readJSON": readJSON,
 		},
 	}, nil
 }
@@ -116,4 +119,27 @@ func toJSON(v any) string {
 		return ""
 	}
 	return string(b)
+}
+
+func readFile(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
+
+func readJSON(path string) (any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var result any
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
