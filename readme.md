@@ -12,6 +12,7 @@ curl -u "device1:secret" 127.0.0.1:8080
 ### Configuration
 
 #### Basic Example
+
 ```yaml
 devices:
   device1:
@@ -38,18 +39,23 @@ templates:
         }
       }
 ```
+
 Templates and variables are resolved recursively, so each type of variable can be used anywhere. For example, "global" variables can be used in "device" variables and vice versa.
 Configuration files can be split into multiple files using top-level keys.
 
 #### Available functions:
-* `string | toJSON` — Converts structs into a JSON string.
-* `fromJSON "path/to/file.json"` — Reads any JSON file from the filesystem into a struct.
-* `fromFile "path/to/file.txt"` — Reads any text file from the filesystem into a string.
+
+* `{{ .Data | toJSON }}` — Converts structs into a JSON string.
+* `{{ .Data | toYAML }}` — Converts structs into a YAML string.
+* `{{ fromJSON "path/to/file.json" }}` — Reads any JSON file from the filesystem into a struct.
+* `{{ fromYAML "path/to/file.yaml" }}` — Reads any YAML file from the filesystem into a struct.
+* `{{ fromFile "path/to/file.txt" }}` — Reads any text file from the filesystem into a string.
 * All built-in Golang template functions and advanced YAML features, such as anchors, are supported.
 
 This allows you to leverage the full power of YAML. It's dirty and stupid, but very powerful.
 
 For example, you can use pseudo-functions like the one below to get a user's password from a third-party config:
+
 ```
 variables:
   functions:

@@ -5,6 +5,7 @@ import (
 	"cfgkit/internal/config"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"text/template"
 )
@@ -52,8 +53,10 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 		},
 		funcMap: template.FuncMap{
 			"toJSON":   toJSON,
-			"readFile": readFile,
-			"readJSON": readJSON,
+			"toYAML":   toYAML,
+			"fromFile": fromFile,
+			"fromJSON": fromJSON,
+			"fromYAML": fromYAML,
 		},
 	}, nil
 }
@@ -123,7 +126,15 @@ func toJSON(v any) string {
 	return string(b)
 }
 
-func readFile(path string) (string, error) {
+func toYAML(v any) string {
+	b, err := yaml.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func fromFile(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -131,7 +142,7 @@ func readFile(path string) (string, error) {
 	return string(content), nil
 }
 
-func readJSON(path string) (any, error) {
+func fromJSON(path string) (any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -139,6 +150,21 @@ func readJSON(path string) (any, error) {
 
 	var result any
 	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func fromYAML(path string) (any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var result any
+	err = yaml.Unmarshal(data, &result)
 	if err != nil {
 		return nil, err
 	}
