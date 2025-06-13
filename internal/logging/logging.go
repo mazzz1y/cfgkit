@@ -27,7 +27,8 @@ func (l *Logger) LogRequest(ctx context.Context, r *http.Request, status int, us
 	attrs := []any{
 		"user", user,
 		"method", r.Method,
-		"remote", r.RemoteAddr,
+		"remote_addr", r.RemoteAddr,
+		"user_agent", r.UserAgent(),
 		"status", status,
 	}
 	if err != nil {
