@@ -32,7 +32,7 @@ templates:
     type: json # "raw" will disable JSON consistency checking and formatting
     data: |
       {
-        "user": {{ .Device.auth | toJSON }},
+        "auth": {{ .Device.auth | toJson }},
         "settings": {
           "api_url": "{{ .Global.api_endpoint }}",
           "timeout": {{ .Global.timeout }}
@@ -45,12 +45,10 @@ Configuration files can be split into multiple files using top-level keys.
 
 #### Available functions:
 
-* `{{ .Data | toJSON }}` — Converts structs into a JSON string.
-* `{{ .Data | toYAML }}` — Converts structs into a YAML string.
-* `{{ fromJSON "path/to/file.json" }}` — Reads any JSON file from the filesystem into a struct.
-* `{{ fromYAML "path/to/file.yaml" }}` — Reads any YAML file from the filesystem into a struct.
 * `{{ fromFile "path/to/file.txt" }}` — Reads any text file from the filesystem into a string.
-* All built-in Golang template functions and advanced YAML features, such as anchors, are supported.
+* `{{ .String | fromYaml }}` — Converts YAML string into struct.
+* All [Sprig](https://masterminds.github.io/sprig/) functions.
+* All built-in Golang template functions and advanced YAML features, such as anchors.
 
 This allows you to leverage the full power of YAML. It's dirty and stupid, but very powerful.
 
@@ -61,7 +59,7 @@ variables:
   functions:
     password: |
       {{- userName := .Device.Name }}
-      {{- range $users := (readJSON "/config/server.json").users }}
+      {{- range $users := (fromFile "/config/server.json" | fromJson).users }}
         {{- if eq $user.name $userName -}}
           {{- $user.password -}}
         {{- end -}}

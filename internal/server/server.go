@@ -15,16 +15,18 @@ type Logger interface {
 }
 
 type Server struct {
-	configDir string
-	port      string
-	logger    Logger
+	configDir  string
+	workingDir string
+	port       string
+	logger     Logger
 }
 
-func New(configDir, port string, logger Logger) *Server {
+func New(configDir, workingDir, port string, logger Logger) *Server {
 	return &Server{
-		configDir: configDir,
-		port:      port,
-		logger:    logger,
+		configDir:  configDir,
+		workingDir: workingDir,
+		port:       port,
+		logger:     logger,
 	}
 }
 
@@ -48,7 +50,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rnd, err := renderer.New(cfg, user)
+	rnd, err := renderer.New(cfg, s.workingDir, user)
 	if err != nil {
 		s.errorResponse(w, r, 500, user, err)
 		return

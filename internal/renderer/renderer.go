@@ -5,8 +5,10 @@ import (
 	"cfgkit/internal/config"
 	"encoding/json"
 	"fmt"
+	"github.com/Masterminds/sprig/v3"
 	"gopkg.in/yaml.v3"
 	"os"
+	"path/filepath"
 	"text/template"
 )
 
@@ -27,10 +29,10 @@ type Variables struct {
 	Device map[string]any
 }
 
-func New(cfg *config.Config, name string) (*Renderer, error) {
-	d, ok := cfg.Devices[name]
+func New(cfg *config.Config, workDir, deviceName string) (*Renderer, error) {
+	d, ok := cfg.Devices[deviceName]
 	if !ok {
-		return nil, fmt.Errorf("device %s not found", name)
+		return nil, fmt.Errorf("device %s not found", deviceName)
 	}
 
 	if d.TemplateName == "" {
@@ -42,7 +44,11 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 		return nil, fmt.Errorf("template %s not found", d.TemplateName)
 	}
 
-	d.Variables["Name"] = name
+	d.Variables["Name"] = deviceName
+
+	funcMap := sprig.FuncMap()
+	funcMap["fromFile"] = fromFile(workDir)
+	funcMap["fromYaml"] = fromYaml
 
 	return &Renderer{
 		tmplStr:    t.Template,
@@ -51,13 +57,7 @@ func New(cfg *config.Config, name string) (*Renderer, error) {
 			Global: cfg.Variables,
 			Device: d.Variables,
 		},
-		funcMap: template.FuncMap{
-			"toJSON":   toJSON,
-			"toYAML":   toYAML,
-			"fromFile": fromFile,
-			"fromJSON": fromJSON,
-			"fromYAML": fromYAML,
-		},
+		funcMap: funcMap,
 	}, nil
 }
 
@@ -118,53 +118,20 @@ func (r *Renderer) format(buf *bytes.Buffer) (*Result, error) {
 	}
 }
 
-func toJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return ""
+func fromFile(workDir string) func(string) (string, error) {
+	return func(path string) (string, error) {
+		fullPath := filepath.Join(workDir, path)
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
 	}
-	return string(b)
 }
 
-func toYAML(v any) string {
-	b, err := yaml.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return string(b)
-}
-
-func fromFile(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
-}
-
-func fromJSON(path string) (any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+func fromYaml(data string) (any, error) {
 	var result any
-	err = json.Unmarshal(data, &result)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-func fromYAML(path string) (any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var result any
-	err = yaml.Unmarshal(data, &result)
+	err := yaml.Unmarshal([]byte(data), &result)
 	if err != nil {
 		return nil, err
 	}

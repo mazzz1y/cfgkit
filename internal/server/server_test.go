@@ -43,7 +43,7 @@ templates:
 }
 
 func newTestServer(dir string) *server.Server {
-	return server.New(dir, "0", mockLogger{})
+	return server.New(dir, "", "0", mockLogger{})
 }
 
 func TestServeHTTP_Success(t *testing.T) {

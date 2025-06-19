@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewDeviceNotFound(t *testing.T) {
-	_, err := New(&config.Config{}, "no")
+	_, err := New(&config.Config{}, "no", "")
 	if err == nil {
 		t.Fatal("expected error for missing device")
 	}
@@ -20,7 +20,7 @@ func TestNewTemplateNotFound(t *testing.T) {
 		},
 		Templates: map[string]config.TemplateConfig{},
 	}
-	_, err := New(cfg, "d")
+	_, err := New(cfg, "d", "")
 	if err == nil {
 		t.Fatal("expected error for missing template")
 	}
@@ -36,7 +36,7 @@ func TestRenderText(t *testing.T) {
 			"t": {Type: "text", Template: "{{.Global.gv}}-{{.Device.dv}}"},
 		},
 	}
-	r, err := New(cfg, "d")
+	r, err := New(cfg, "", "d")
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestRenderJSON(t *testing.T) {
 			"j": {Type: "json", Template: `{"field":"{{.Global.v}}"}`},
 		},
 	}
-	r, err := New(cfg, "d")
+	r, err := New(cfg, "", "d")
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestRenderInvalidJSON(t *testing.T) {
 			"b": {Type: "json", Template: `{"field": {{.Global.v}}}`},
 		},
 	}
-	r, err := New(cfg, "d")
+	r, err := New(cfg, "", "d")
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
