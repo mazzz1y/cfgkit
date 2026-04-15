@@ -3,8 +3,10 @@ package renderer
 import (
 	"cfgkit/internal/config"
 	"encoding/json"
-	"gopkg.in/yaml.v3"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func mustNode(t *testing.T, s string) yaml.Node {
@@ -185,5 +187,195 @@ func TestResolveGlobalReferencesDevice(t *testing.T) {
 	}
 	if got := res.Data.String(); got != "device-alpha" {
 		t.Errorf("unexpected data: %q", got)
+	}
+}
+
+func TestValidateNotConfigured(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}"},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	res, err := r.Render()
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := res.Data.String(); got != "hello" {
+		t.Errorf("unexpected data: %q", got)
+	}
+}
+
+func TestValidateSuccess(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"cat", "{{ .TemplatePath }}"}},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	res, err := r.Render()
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := res.Data.String(); got != "hello" {
+		t.Errorf("unexpected data: %q", got)
+	}
+}
+
+func TestValidateFailure(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"false", "{{ .TemplatePath }}"}},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	_, err = r.Render()
+	if err == nil {
+		t.Fatal("expected error from check command")
+	}
+	if !strings.Contains(err.Error(), "check") {
+		t.Errorf("expected 'check' in error, got: %v", err)
+	}
+}
+
+func TestValidateShellForm(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: "true {{ .TemplatePath }}"},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	res, err := r.Render()
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := res.Data.String(); got != "hello" {
+		t.Errorf("unexpected data: %q", got)
+	}
+}
+
+func TestValidateShellFormFailure(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: "exit 1"},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	_, err = r.Render()
+	if err == nil {
+		t.Fatal("expected error from shell check command")
+	}
+}
+
+func TestValidateReceivesTempFilePath(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Variables: mustNode(t, "v: hello"),
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "{{.Global.v}}",
+				Check: []any{"grep", "-q", "hello", "{{ .TemplatePath }}"}},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	res, err := r.Render()
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := res.Data.String(); got != "hello" {
+		t.Errorf("unexpected data: %q", got)
+	}
+}
+
+func TestParseCheckNil(t *testing.T) {
+	result, err := parseCheck(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestParseCheckExecForm(t *testing.T) {
+	result, err := parseCheck([]any{"mycheck", "--validate", "-c"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 3 || result[0] != "mycheck" || result[1] != "--validate" || result[2] != "-c" {
+		t.Errorf("unexpected result: %v", result)
+	}
+}
+
+func TestParseCheckShellForm(t *testing.T) {
+	result, err := parseCheck("mycheck --validate -c")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 3 || result[0] != "sh" || result[1] != "-c" || result[2] != "mycheck --validate -c" {
+		t.Errorf("unexpected result: %v", result)
+	}
+}
+
+func TestParseCheckEmptyString(t *testing.T) {
+	result, err := parseCheck("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestParseCheckInvalidType(t *testing.T) {
+	_, err := parseCheck(123)
+	if err == nil {
+		t.Fatal("expected error for invalid type")
+	}
+}
+
+func TestParseCheckInvalidListElement(t *testing.T) {
+	_, err := parseCheck([]any{"ok", 123})
+	if err == nil {
+		t.Fatal("expected error for non-string list element")
 	}
 }

@@ -24,6 +24,7 @@ type TemplateConfig struct {
 	Type     string `yaml:"type"`
 	File     string `yaml:"file"`
 	Template string `yaml:"data"`
+	Check    any    `yaml:"check"`
 }
 
 func Load(dir string) (*Config, error) {

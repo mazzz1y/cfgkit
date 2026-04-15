@@ -89,3 +89,31 @@ variables:
         {{- end -}}
       {{- end -}}
 ```
+
+#### External Validation
+
+Templates support an optional `check` field that runs an external command to validate the rendered output before sending the response. The rendered config is written to a temporary file, and its path is available as `{{ .TemplatePath }}`.
+
+Exec form (no shell):
+
+```yaml
+templates:
+  default:
+    type: json
+    check: ["mycheck", "--validate", "{{ .TemplatePath }}"]
+    data: |
+      { ... }
+```
+
+Shell form (wrapped in `sh -c`):
+
+```yaml
+templates:
+  default:
+    type: json
+    check: "mycheck --validate {{ .TemplatePath }}"
+    data: |
+      { ... }
+```
+
+If the command exits with a non-zero status, the request returns a 500 error with the command's stderr. The check command has a 5-second timeout.
