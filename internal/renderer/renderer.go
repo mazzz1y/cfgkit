@@ -17,7 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultTemplateName = "default"
+const (
+	defaultTemplateName = "default"
+	resultTypeJSON      = "json"
+)
 
 type Renderer struct {
 	tmpl       *template.Template
@@ -134,10 +137,22 @@ func (r *Renderer) validate(data []byte) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	tmpFilePath := filepath.Join(tmpDir, "config")
-	if err := os.WriteFile(tmpFilePath, data, 0600); err != nil {
+	suffix := ""
+	if r.resultType == resultTypeJSON {
+		suffix = ".json"
+	}
+	tmpFile, err := os.CreateTemp(tmpDir, "cfgkit-*"+suffix)
+	if err != nil {
+		return fmt.Errorf("check: create temp file: %w", err)
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
 		return fmt.Errorf("check: write temp file: %w", err)
 	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("check: close temp file: %w", err)
+	}
+	tmpFilePath := tmpFile.Name()
 
 	tmplCtx := map[string]string{
 		"TemplateFilePath": tmpFilePath,
@@ -189,7 +204,7 @@ func renderCheckArg(raw string, ctx map[string]string) (string, error) {
 
 func (r *Renderer) format(buf *bytes.Buffer) (*Result, error) {
 	switch r.resultType {
-	case "json":
+	case resultTypeJSON:
 		var out bytes.Buffer
 		if err := json.Indent(&out, buf.Bytes(), "", "  "); err != nil {
 			return nil, fmt.Errorf("invalid JSON: %w", err)

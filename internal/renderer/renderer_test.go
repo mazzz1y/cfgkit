@@ -379,3 +379,41 @@ func TestParseCheckInvalidListElement(t *testing.T) {
 		t.Fatal("expected error for non-string list element")
 	}
 }
+
+func TestValidateJSONFileExtension(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "json", Template: `{"ok":true}`,
+				Check: "case {{ .TemplateFilePath }} in *.json) exit 0;; *) exit 1;; esac"},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	if _, err := r.Render(); err != nil {
+		t.Fatalf("expected .json extension: %v", err)
+	}
+}
+
+func TestValidateTextNoExtension(t *testing.T) {
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "hello",
+				Check: "case {{ .TemplateFilePath }} in *.*) exit 1;; *) exit 0;; esac"},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	if _, err := r.Render(); err != nil {
+		t.Fatalf("expected no extension: %v", err)
+	}
+}
