@@ -128,21 +128,21 @@ func (r *Renderer) validate(data []byte) error {
 		return nil
 	}
 
-	tmpFile, err := os.CreateTemp("", "cfgkit-check-*")
+	tmpDir, err := os.MkdirTemp("", "cfgkit-check-*")
 	if err != nil {
-		return fmt.Errorf("check: create temp file: %w", err)
+		return fmt.Errorf("check: create temp dir: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.RemoveAll(tmpDir)
 
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
+	tmpFilePath := filepath.Join(tmpDir, "config")
+	if err := os.WriteFile(tmpFilePath, data, 0600); err != nil {
 		return fmt.Errorf("check: write temp file: %w", err)
 	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("check: close temp file: %w", err)
-	}
 
-	tmplCtx := map[string]string{"TemplatePath": tmpFile.Name()}
+	tmplCtx := map[string]string{
+		"TemplateFilePath": tmpFilePath,
+		"TemplateFileDir":  tmpDir,
+	}
 	args := make([]string, len(r.check))
 	for i, raw := range r.check {
 		arg, err := renderCheckArg(raw, tmplCtx)

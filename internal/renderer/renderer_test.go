@@ -220,7 +220,7 @@ func TestValidateSuccess(t *testing.T) {
 		},
 		Variables: mustNode(t, "v: hello"),
 		Templates: map[string]config.TemplateConfig{
-			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"cat", "{{ .TemplatePath }}"}},
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"cat", "{{ .TemplateFilePath }}"}},
 		},
 	}
 	r, err := New(cfg, "", "d")
@@ -243,7 +243,7 @@ func TestValidateFailure(t *testing.T) {
 		},
 		Variables: mustNode(t, "v: hello"),
 		Templates: map[string]config.TemplateConfig{
-			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"false", "{{ .TemplatePath }}"}},
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: []any{"false", "{{ .TemplateFilePath }}"}},
 		},
 	}
 	r, err := New(cfg, "", "d")
@@ -266,7 +266,7 @@ func TestValidateShellForm(t *testing.T) {
 		},
 		Variables: mustNode(t, "v: hello"),
 		Templates: map[string]config.TemplateConfig{
-			"t": {Type: "text", Template: "{{.Global.v}}", Check: "true {{ .TemplatePath }}"},
+			"t": {Type: "text", Template: "{{.Global.v}}", Check: "true {{ .TemplateFilePath }}"},
 		},
 	}
 	r, err := New(cfg, "", "d")
@@ -310,7 +310,7 @@ func TestValidateReceivesTempFilePath(t *testing.T) {
 		Variables: mustNode(t, "v: hello"),
 		Templates: map[string]config.TemplateConfig{
 			"t": {Type: "text", Template: "{{.Global.v}}",
-				Check: []any{"grep", "-q", "hello", "{{ .TemplatePath }}"}},
+				Check: []any{"grep", "-q", "hello", "{{ .TemplateFilePath }}"}},
 		},
 	}
 	r, err := New(cfg, "", "d")

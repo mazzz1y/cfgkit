@@ -92,7 +92,12 @@ variables:
 
 #### External Validation
 
-Templates support an optional `check` field that runs an external command to validate the rendered output before sending the response. The rendered config is written to a temporary file, and its path is available as `{{ .TemplatePath }}`.
+Templates support an optional `check` field that runs an external command to validate the rendered output before sending the response. The rendered config is written to a temporary file inside a unique directory. The following template variables are available:
+
+* `{{ .TemplateFilePath }}` — full path to the temporary config file
+* `{{ .TemplateFileDir }}` — the directory containing the temporary file
+
+The temporary directory is removed after the check completes.
 
 Exec form (no shell):
 
@@ -100,7 +105,7 @@ Exec form (no shell):
 templates:
   default:
     type: json
-    check: ["mycheck", "--validate", "{{ .TemplatePath }}"]
+    check: ["mycheck", "--validate", "{{ .TemplateFilePath }}"]
     data: |
       { ... }
 ```
@@ -111,7 +116,7 @@ Shell form (wrapped in `sh -c`):
 templates:
   default:
     type: json
-    check: "mycheck --validate {{ .TemplatePath }}"
+    check: "mycheck --validate {{ .TemplateFilePath }}"
     data: |
       { ... }
 ```
