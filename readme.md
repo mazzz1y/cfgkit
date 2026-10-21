@@ -121,4 +121,18 @@ templates:
       { ... }
 ```
 
-If the command exits with a non-zero status, the request returns a 500 error with the command's stderr. The check command has a 5-second timeout.
+If the command exits with a non-zero status, the request returns a 500 error with the command's stderr.
+
+The check command has a 5-second timeout by default, configurable per template with `check_timeout` (Go duration syntax):
+
+```yaml
+templates:
+  default:
+    type: json
+    check: ["sing-box", "check", "-C", "{{ .TemplateFileDir }}"]
+    check_timeout: 10s
+```
+
+On timeout the whole process group of the check is killed, including children spawned by the shell form.
+
+The number of concurrently running checks is limited by the `-max-checks` flag (defaults to the number of CPUs). A request waits for a free slot up to its template's `check_timeout`; if none frees up, it returns 503. Size the container memory for `-max-checks` × the peak memory of the check command.

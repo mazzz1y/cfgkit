@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,10 +22,11 @@ type DeviceConfig struct {
 }
 
 type TemplateConfig struct {
-	Type     string `yaml:"type"`
-	File     string `yaml:"file"`
-	Template string `yaml:"data"`
-	Check    any    `yaml:"check"`
+	Type         string        `yaml:"type"`
+	File         string        `yaml:"file"`
+	Template     string        `yaml:"data"`
+	Check        any           `yaml:"check"`
+	CheckTimeout time.Duration `yaml:"check_timeout"`
 }
 
 func Load(dir string) (*Config, error) {

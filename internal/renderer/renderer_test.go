@@ -2,9 +2,16 @@ package renderer
 
 import (
 	"cfgkit/internal/config"
+	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -55,7 +62,7 @@ func TestRenderText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -81,7 +88,7 @@ func TestRenderJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -111,7 +118,7 @@ func TestRenderInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(); err == nil {
+	if _, err := r.Render(context.Background()); err == nil {
 		t.Fatal("expected error for invalid json output")
 	}
 }
@@ -130,7 +137,7 @@ func TestResolveGlobalSequential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -158,7 +165,7 @@ functions:
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -181,7 +188,7 @@ func TestResolveGlobalReferencesDevice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -204,7 +211,7 @@ func TestValidateNotConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -227,7 +234,7 @@ func TestValidateSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -250,7 +257,7 @@ func TestValidateFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	_, err = r.Render()
+	_, err = r.Render(context.Background())
 	if err == nil {
 		t.Fatal("expected error from check command")
 	}
@@ -273,7 +280,7 @@ func TestValidateShellForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -296,7 +303,7 @@ func TestValidateShellFormFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	_, err = r.Render()
+	_, err = r.Render(context.Background())
 	if err == nil {
 		t.Fatal("expected error from shell check command")
 	}
@@ -317,7 +324,7 @@ func TestValidateReceivesTempFilePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render()
+	res, err := r.Render(context.Background())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -394,7 +401,7 @@ func TestValidateJSONFileExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(); err != nil {
+	if _, err := r.Render(context.Background()); err != nil {
 		t.Fatalf("expected .json extension: %v", err)
 	}
 }
@@ -413,7 +420,102 @@ func TestValidateTextNoExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(); err != nil {
+	if _, err := r.Render(context.Background()); err != nil {
 		t.Fatalf("expected no extension: %v", err)
+	}
+}
+
+func TestValidateTimeoutKillsProcessGroup(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{
+			"d": {TemplateName: "t"},
+		},
+		Templates: map[string]config.TemplateConfig{
+			"t": {Type: "text", Template: "hello",
+				Check:        "sleep 30 & echo $! > " + pidFile + "; wait",
+				CheckTimeout: 300 * time.Millisecond},
+		},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+
+	start := time.Now()
+	_, err = r.Render(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "timed out after 300ms") {
+		t.Fatalf("expected timeout error, got: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > checkWaitDelay+time.Second {
+		t.Errorf("render took too long: %s", elapsed)
+	}
+
+	raw, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("read pid file: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		t.Fatalf("parse pid: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatalf("child process %d survived the timeout", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestValidateDefaultTimeout(t *testing.T) {
+	cfg := &config.Config{
+		Devices:   map[string]config.DeviceConfig{"d": {TemplateName: "t"}},
+		Templates: map[string]config.TemplateConfig{"t": {Template: "x", Check: "true"}},
+	}
+	r, err := New(cfg, "", "d")
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	if r.checkTimeout != defaultCheckTimeout {
+		t.Errorf("expected default timeout %s, got %s", defaultCheckTimeout, r.checkTimeout)
+	}
+}
+
+func TestValidateNegativeTimeout(t *testing.T) {
+	cfg := &config.Config{
+		Devices:   map[string]config.DeviceConfig{"d": {TemplateName: "t"}},
+		Templates: map[string]config.TemplateConfig{"t": {Template: "x", CheckTimeout: -time.Second}},
+	}
+	if _, err := New(cfg, "", "d"); err == nil {
+		t.Fatal("expected error for negative check_timeout")
+	}
+}
+
+func TestValidateLimiterBusy(t *testing.T) {
+	limiter := NewLimiter(1)
+	release, err := limiter.acquire(context.Background(), time.Second)
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+
+	cfg := &config.Config{
+		Devices: map[string]config.DeviceConfig{"d": {TemplateName: "t"}},
+		Templates: map[string]config.TemplateConfig{
+			"t": {Template: "x", Check: "true", CheckTimeout: 100 * time.Millisecond},
+		},
+	}
+	r, err := New(cfg, "", "d", WithLimiter(limiter))
+	if err != nil {
+		t.Fatalf("create renderer: %v", err)
+	}
+	if _, err := r.Render(context.Background()); !errors.Is(err, ErrCheckBusy) {
+		t.Fatalf("expected ErrCheckBusy, got: %v", err)
+	}
+
+	release()
+	if _, err := r.Render(context.Background()); err != nil {
+		t.Fatalf("expected success after release, got: %v", err)
 	}
 }

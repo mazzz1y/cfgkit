@@ -5,11 +5,13 @@ import (
 	"cfgkit/internal/config"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -20,13 +22,23 @@ import (
 const (
 	defaultTemplateName = "default"
 	resultTypeJSON      = "json"
+	defaultCheckTimeout = 5 * time.Second
+	checkWaitDelay      = time.Second
 )
 
 type Renderer struct {
-	tmpl       *template.Template
-	ctx        map[string]any
-	resultType string
-	check      []string
+	tmpl         *template.Template
+	ctx          map[string]any
+	resultType   string
+	check        []string
+	checkTimeout time.Duration
+	limiter      *Limiter
+}
+
+type Option func(*Renderer)
+
+func WithLimiter(l *Limiter) Option {
+	return func(r *Renderer) { r.limiter = l }
 }
 
 type Result struct {
@@ -34,7 +46,7 @@ type Result struct {
 	ContentType string
 }
 
-func New(cfg *config.Config, workDir, deviceName string) (*Renderer, error) {
+func New(cfg *config.Config, workDir, deviceName string, opts ...Option) (*Renderer, error) {
 	device, ok := cfg.Devices[deviceName]
 	if !ok {
 		return nil, fmt.Errorf("device %s not found", deviceName)
@@ -75,15 +87,28 @@ func New(cfg *config.Config, workDir, deviceName string) (*Renderer, error) {
 		return nil, fmt.Errorf("parse check command: %w", err)
 	}
 
-	return &Renderer{
-		tmpl:       tmpl,
-		ctx:        resolver.Context(),
-		resultType: tmplCfg.Type,
-		check:      check,
-	}, nil
+	checkTimeout := tmplCfg.CheckTimeout
+	switch {
+	case checkTimeout < 0:
+		return nil, fmt.Errorf("check_timeout: must not be negative, got %s", checkTimeout)
+	case checkTimeout == 0:
+		checkTimeout = defaultCheckTimeout
+	}
+
+	r := &Renderer{
+		tmpl:         tmpl,
+		ctx:          resolver.Context(),
+		resultType:   tmplCfg.Type,
+		check:        check,
+		checkTimeout: checkTimeout,
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r, nil
 }
 
-func (r *Renderer) Render() (*Result, error) {
+func (r *Renderer) Render(ctx context.Context) (*Result, error) {
 	var buf bytes.Buffer
 	if err := r.tmpl.Execute(&buf, r.ctx); err != nil {
 		return nil, fmt.Errorf("render: %w", err)
@@ -92,7 +117,7 @@ func (r *Renderer) Render() (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := r.validate(res.Data.Bytes()); err != nil {
+	if err := r.validate(ctx, res.Data.Bytes()); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -126,10 +151,16 @@ func parseCheck(raw any) ([]string, error) {
 	}
 }
 
-func (r *Renderer) validate(data []byte) error {
+func (r *Renderer) validate(ctx context.Context, data []byte) error {
 	if len(r.check) == 0 {
 		return nil
 	}
+
+	release, err := r.limiter.acquire(ctx, r.checkTimeout)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	tmpDir, err := os.MkdirTemp("", "cfgkit-check-*")
 	if err != nil {
@@ -167,16 +198,24 @@ func (r *Renderer) validate(data []byte) error {
 		args[i] = arg
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, r.checkTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
+		return os.ErrProcessDone
+	}
+	cmd.WaitDelay = checkWaitDelay
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("check: timed out after 5s")
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("check: timed out after %s", r.checkTimeout)
 		}
 		msg := stderr.String()
 		if msg != "" {

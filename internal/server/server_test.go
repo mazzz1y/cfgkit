@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"cfgkit/internal/server"
 )
@@ -43,7 +44,7 @@ templates:
 }
 
 func newTestServer(dir string) *server.Server {
-	return server.New(dir, "", "0", mockLogger{})
+	return server.New(dir, "", "0", 1, mockLogger{})
 }
 
 func TestServeHTTP_Success(t *testing.T) {
@@ -105,5 +106,51 @@ func TestServeHTTP_ConfigError(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status 500; got %d", rec.Code)
+	}
+}
+
+func TestServeHTTP_CheckBusy(t *testing.T) {
+	tmp := t.TempDir()
+	const configStr = `
+devices:
+  user1:
+    template: default
+    password: pass1
+templates:
+  default:
+    type: text
+    data: hello
+    check: "sleep 1"
+    check_timeout: 500ms
+`
+	if err := os.WriteFile(filepath.Join(tmp, "config.yaml"), []byte(configStr), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	srv := newTestServer(tmp)
+	codes := make(chan int, 2)
+	for range 2 {
+		go func() {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.SetBasicAuth("user1", "pass1")
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+			codes <- rec.Code
+		}()
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.SetBasicAuth("user1", "pass1")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503; got %d", rec.Code)
+	}
+	for range 2 {
+		if code := <-codes; code != http.StatusInternalServerError {
+			t.Errorf("expected queued request to time out with 500; got %d", code)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -19,14 +20,16 @@ type Server struct {
 	workingDir string
 	port       string
 	logger     Logger
+	limiter    *renderer.Limiter
 }
 
-func New(configDir, workingDir, port string, logger Logger) *Server {
+func New(configDir, workingDir, port string, maxChecks int, logger Logger) *Server {
 	return &Server{
 		configDir:  configDir,
 		workingDir: workingDir,
 		port:       port,
 		logger:     logger,
+		limiter:    renderer.NewLimiter(maxChecks),
 	}
 }
 
@@ -50,13 +53,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rnd, err := renderer.New(cfg, s.workingDir, user)
+	rnd, err := renderer.New(cfg, s.workingDir, user, renderer.WithLimiter(s.limiter))
 	if err != nil {
 		s.errorResponse(w, r, 500, user, err)
 		return
 	}
 
-	res, err := rnd.Render()
+	res, err := rnd.Render(r.Context())
+	if errors.Is(err, renderer.ErrCheckBusy) {
+		s.errorResponse(w, r, http.StatusServiceUnavailable, user, err)
+		return
+	}
 	if err != nil {
 		s.errorResponse(w, r, 500, user, err)
 		return

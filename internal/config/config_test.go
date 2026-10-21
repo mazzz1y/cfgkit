@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func decodeNode(t *testing.T, n yaml.Node) map[string]any {
@@ -134,5 +135,20 @@ func TestLoadInvalidYAML(t *testing.T) {
 func TestLoadNonexistent(t *testing.T) {
 	if _, err := Load("no-such-dir"); err == nil {
 		t.Fatalf("expected error for missing dir")
+	}
+}
+
+func TestLoadCheckTimeout(t *testing.T) {
+	dir := t.TempDir()
+	data := "templates:\n  t:\n    data: x\n    check_timeout: 10s\n"
+	if err := os.WriteFile(filepath.Join(dir, "c.yaml"), []byte(data), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := cfg.Templates["t"].CheckTimeout; got != 10*time.Second {
+		t.Errorf("expected 10s, got %s", got)
 	}
 }
