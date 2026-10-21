@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -66,12 +67,8 @@ func loadFile(c *Config, path string) error {
 		return fmt.Errorf("decoding yaml %q: %w", path, err)
 	}
 
-	for k, v := range file.Devices {
-		c.Devices[k] = v
-	}
-	for k, v := range file.Templates {
-		c.Templates[k] = v
-	}
+	maps.Copy(c.Devices, file.Devices)
+	maps.Copy(c.Templates, file.Templates)
 	c.Variables = mergeMapping(c.Variables, file.Variables)
 	return nil
 }

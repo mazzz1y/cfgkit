@@ -80,13 +80,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) auth(cfg *config.Config, user, pass string) bool {
-	for k, v := range cfg.Devices {
-		if k == user && v.Password == pass {
-			return true
-		}
-	}
-
-	return false
+	device, ok := cfg.Devices[user]
+	return ok && device.Password == pass
 }
 
 func (s *Server) errorResponse(w http.ResponseWriter, r *http.Request, status int, user string, err error) {

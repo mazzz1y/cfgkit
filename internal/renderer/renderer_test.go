@@ -2,7 +2,6 @@ package renderer
 
 import (
 	"cfgkit/internal/config"
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -62,7 +61,7 @@ func TestRenderText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -88,7 +87,7 @@ func TestRenderJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -118,7 +117,7 @@ func TestRenderInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(context.Background()); err == nil {
+	if _, err := r.Render(t.Context()); err == nil {
 		t.Fatal("expected error for invalid json output")
 	}
 }
@@ -137,7 +136,7 @@ func TestResolveGlobalSequential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -165,7 +164,7 @@ functions:
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -188,7 +187,7 @@ func TestResolveGlobalReferencesDevice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -211,7 +210,7 @@ func TestValidateNotConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -234,7 +233,7 @@ func TestValidateSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -257,7 +256,7 @@ func TestValidateFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	_, err = r.Render(context.Background())
+	_, err = r.Render(t.Context())
 	if err == nil {
 		t.Fatal("expected error from check command")
 	}
@@ -280,7 +279,7 @@ func TestValidateShellForm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -303,7 +302,7 @@ func TestValidateShellFormFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	_, err = r.Render(context.Background())
+	_, err = r.Render(t.Context())
 	if err == nil {
 		t.Fatal("expected error from shell check command")
 	}
@@ -324,7 +323,7 @@ func TestValidateReceivesTempFilePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	res, err := r.Render(context.Background())
+	res, err := r.Render(t.Context())
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -401,7 +400,7 @@ func TestValidateJSONFileExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(context.Background()); err != nil {
+	if _, err := r.Render(t.Context()); err != nil {
 		t.Fatalf("expected .json extension: %v", err)
 	}
 }
@@ -420,7 +419,7 @@ func TestValidateTextNoExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(context.Background()); err != nil {
+	if _, err := r.Render(t.Context()); err != nil {
 		t.Fatalf("expected no extension: %v", err)
 	}
 }
@@ -443,7 +442,7 @@ func TestValidateTimeoutKillsProcessGroup(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err = r.Render(context.Background())
+	_, err = r.Render(t.Context())
 	if err == nil || !strings.Contains(err.Error(), "timed out after 300ms") {
 		t.Fatalf("expected timeout error, got: %v", err)
 	}
@@ -495,7 +494,7 @@ func TestValidateNegativeTimeout(t *testing.T) {
 
 func TestValidateLimiterBusy(t *testing.T) {
 	limiter := NewLimiter(1)
-	release, err := limiter.acquire(context.Background(), time.Second)
+	release, err := limiter.acquire(t.Context(), time.Second)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -510,12 +509,12 @@ func TestValidateLimiterBusy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create renderer: %v", err)
 	}
-	if _, err := r.Render(context.Background()); !errors.Is(err, ErrCheckBusy) {
+	if _, err := r.Render(t.Context()); !errors.Is(err, ErrCheckBusy) {
 		t.Fatalf("expected ErrCheckBusy, got: %v", err)
 	}
 
 	release()
-	if _, err := r.Render(context.Background()); err != nil {
+	if _, err := r.Render(t.Context()); err != nil {
 		t.Fatalf("expected success after release, got: %v", err)
 	}
 }

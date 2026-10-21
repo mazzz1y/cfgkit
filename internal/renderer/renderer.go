@@ -3,6 +3,7 @@ package renderer
 import (
 	"bytes"
 	"cfgkit/internal/config"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,8 @@ const (
 	defaultCheckTimeout = 5 * time.Second
 	checkWaitDelay      = time.Second
 )
+
+var errCheckTimeout = errors.New("check timeout")
 
 type Renderer struct {
 	tmpl         *template.Template
@@ -87,12 +90,8 @@ func New(cfg *config.Config, workDir, deviceName string, opts ...Option) (*Rende
 		return nil, fmt.Errorf("parse check command: %w", err)
 	}
 
-	checkTimeout := tmplCfg.CheckTimeout
-	switch {
-	case checkTimeout < 0:
-		return nil, fmt.Errorf("check_timeout: must not be negative, got %s", checkTimeout)
-	case checkTimeout == 0:
-		checkTimeout = defaultCheckTimeout
+	if tmplCfg.CheckTimeout < 0 {
+		return nil, fmt.Errorf("check_timeout: must not be negative, got %s", tmplCfg.CheckTimeout)
 	}
 
 	r := &Renderer{
@@ -100,7 +99,7 @@ func New(cfg *config.Config, workDir, deviceName string, opts ...Option) (*Rende
 		ctx:          resolver.Context(),
 		resultType:   tmplCfg.Type,
 		check:        check,
-		checkTimeout: checkTimeout,
+		checkTimeout: cmp.Or(tmplCfg.CheckTimeout, defaultCheckTimeout),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -198,7 +197,7 @@ func (r *Renderer) validate(ctx context.Context, data []byte) error {
 		args[i] = arg
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, r.checkTimeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, r.checkTimeout, errCheckTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
@@ -214,7 +213,7 @@ func (r *Renderer) validate(ctx context.Context, data []byte) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(context.Cause(ctx), errCheckTimeout) {
 			return fmt.Errorf("check: timed out after %s", r.checkTimeout)
 		}
 		msg := stderr.String()
